@@ -42,6 +42,7 @@ add_llvm_executable(nn-opt
   src/NNDialect.cpp
   src/NNOps.cpp
   src/ReluCombine.cpp
+  src/NNLower.cpp
 )
 
 add_dependencies(nn-opt NNDialectIncGen NNOpsIncGen)
@@ -54,4 +55,19 @@ target_link_libraries(nn-opt PRIVATE
   MLIRIR
   MLIRSupport
   LLVMSupport
+  MLIRLinalgDialect
+  MLIRArithDialect
+  MLIRTensorDialect
+  MLIRSCFDialect
+  MLIRControlFlowDialect
+  MLIRMemRefDialect
+  MLIRLLVMDialect
+  MLIRLinalgTransforms
+  MLIRBufferizationTransforms
+  MLIRSCFToControlFlow
+  MLIRFuncToLLVM
+  MLIRArithToLLVM
+  MLIRControlFlowToLLVM
+  MLIRMemRefToLLVM
+  MLIRReconcileUnrealizedCasts
 )
