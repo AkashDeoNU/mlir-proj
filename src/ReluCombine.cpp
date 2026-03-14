@@ -1,3 +1,9 @@
+#include "NNOps.h"
+#include "mlir/IR/PatternMatch.h"
+
+using namespace nn;
+using namespace mlir;
+
 // Fold Relu(Relu(x)) -> Relu(x)
 struct SimplifyTwoRelus : public mlir::OpRewritePattern<ReluOp> {
   SimplifyTwoRelus(mlir::MLIRContext *context)

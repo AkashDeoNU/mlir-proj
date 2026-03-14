@@ -2,7 +2,7 @@
 #define NN_OPS_H
 
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Op.h"
+#include "mlir/IR/OpDefinition.h"
 
 #define GET_OP_CLASSES
 #include "NNOps.h.inc"
