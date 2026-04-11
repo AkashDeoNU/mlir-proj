@@ -1,3 +1,5 @@
+#include "NNDialect.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -7,7 +9,7 @@
 #include "NNOps.h"
 
 namespace nn {
-  struct NNToLinAlgLoweringPass : mlir::PassWrapper<NNToLinAlgLoweringPass, mlir::OperationPass<mlir::ModuleOp>> {
+  struct NNToLinalgLoweringPass : mlir::PassWrapper<NNToLinalgLoweringPass, mlir::OperationPass<mlir::ModuleOp>> {
   void runOnOperation();
 };
 } // nn

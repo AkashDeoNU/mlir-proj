@@ -42,7 +42,8 @@ add_llvm_executable(nn-opt
   src/NNDialect.cpp
   src/NNOps.cpp
   src/ReluCombine.cpp
-  src/NNLower.cpp
+  src/NNLowerToLinalg.cpp
+  src/NNLowerToLLVM.cpp
 )
 
 add_dependencies(nn-opt NNDialectIncGen NNOpsIncGen)
