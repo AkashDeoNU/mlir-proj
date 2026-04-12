@@ -1,4 +1,14 @@
-// Goal: NN -> Linalg -> Arith -> LLVMIR
+//
+// NN is a compiler that takes a neural net and transforms it into LLVM IR.
+// It relies on four transformations from a high level language.
+// 1. Lower NN. Func + NN -> Func + Linalg + Tensor + Arith
+// (NNLowerToLinalg.cpp).
+// 2. Bufferization. Func + Linalg + Tensor + Arith -> Func + Linalg + MemRef +
+// Arith (MLIR).
+// 3. LinalgToLoops. Func + Linalg + MemRef + Arith -> Func + SCF + MemRef +
+// Arith (MLIR).
+// 4. Lower To LLVM. Func + SCF + MemRef + Arith -> LLVM IR (NNLowerToLLVM.cpp).
+//
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Conversion/Passes.h"
