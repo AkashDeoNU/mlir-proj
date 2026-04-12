@@ -22,6 +22,12 @@
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 
+#include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Export.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+
 #include "NNDialect.h"
 #include "NNOps.h"
 #include "NNLowerToLinalg.h"
@@ -60,6 +66,12 @@ int main(int argc, char **argv) {
   context.loadDialect<mlir::LLVM::LLVMDialect>();
   context.loadDialect<mlir::bufferization::BufferizationDialect>();
 
+  // Register the LLVMIR translation interface for the llvm + builtin
+  // dialects, so translateModuleToLLVMIR can lower them to a real
+  // llvm::Module after the pass pipeline finishes.
+  mlir::registerBuiltinDialectTranslation(context);
+  mlir::registerLLVMDialectTranslation(context);
+
   // 2. Parse the input file into a module
   mlir::OwningOpRef<mlir::ModuleOp> module =
 	mlir::parseSourceFile<mlir::ModuleOp>(argv[1], &context);
@@ -96,7 +108,15 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // 5. Print the transformed IR
-  module->print(llvm::outs());
+  // 5. Translate the llvm-dialect module into a real llvm::Module and
+  //    print it as textual LLVM IR.
+  llvm::LLVMContext llvmContext;
+  std::unique_ptr<llvm::Module> llvmModule =
+      mlir::translateModuleToLLVMIR(*module, llvmContext);
+  if (!llvmModule) {
+    llvm::errs() << "Failed to translate to LLVM IR\n";
+    return 1;
+  }
+  llvmModule->print(llvm::outs(), /*AAW=*/nullptr);
   return 0;
 }

@@ -71,4 +71,7 @@ target_link_libraries(nn-opt PRIVATE
   MLIRControlFlowToLLVM
   MLIRMemRefToLLVM
   MLIRReconcileUnrealizedCasts
+  MLIRTargetLLVMIRExport
+  MLIRLLVMToLLVMIRTranslation
+  MLIRBuiltinToLLVMIRTranslation
 )
