@@ -65,6 +65,111 @@ struct ReluOpLowering : public OpConversionPattern<ReluOp> {
   }
 };
 
+// Lower `nn.matmul %lhs, %rhs` to:
+//   %init   = tensor.empty(%M, %N)
+//   %zeroed = linalg.fill ins(0.0) outs(%init)   // matmul accumulates
+//   %res    = linalg.matmul ins(%lhs, %rhs) outs(%zeroed)
+struct MatmulOpLowering : public OpConversionPattern<MatmulOp> {
+  using OpConversionPattern<MatmulOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(MatmulOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+
+    auto lhsType = cast<RankedTensorType>(lhs.getType());
+    auto rhsType = cast<RankedTensorType>(rhs.getType());
+    auto resultType = cast<RankedTensorType>(op.getType());
+
+    if (lhsType.getRank() != 2 || rhsType.getRank() != 2)
+      return rewriter.notifyMatchFailure(op, "matmul expects 2-D operands");
+
+    Type f64 = rewriter.getF64Type();
+
+    // Result is [M, N]: M comes from lhs dim 0, N from rhs dim 1.
+    SmallVector<Value> dynSizes;
+    if (resultType.isDynamicDim(0))
+      dynSizes.push_back(rewriter.create<tensor::DimOp>(loc, lhs, 0));
+    if (resultType.isDynamicDim(1))
+      dynSizes.push_back(rewriter.create<tensor::DimOp>(loc, rhs, 1));
+
+    Value init = rewriter.create<tensor::EmptyOp>(loc, resultType.getShape(),
+                                                  f64, dynSizes);
+
+    // linalg.matmul reads its output operand as the accumulator, so it
+    // must be zeroed before the contraction starts.
+    Value zeroScalar = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getF64FloatAttr(0.0));
+    Value zeroed = rewriter
+                       .create<linalg::FillOp>(loc, ValueRange{zeroScalar},
+                                               ValueRange{init})
+                       .getResult(0);
+
+    auto matmul = rewriter.create<linalg::MatmulOp>(
+        loc, /*inputs=*/ValueRange{lhs, rhs},
+        /*outputs=*/ValueRange{zeroed});
+    rewriter.replaceOp(op, matmul.getResults());
+    return success();
+  }
+};
+
+// Lower `nn.add %lhs, %rhs` to a linalg.add. If rhs has lower rank than
+// lhs, broadcast it up to lhs's shape with linalg.broadcast first (the
+// bias-add pattern: tensor<BxNxf64> + tensor<Nxf64>).
+struct AddOpLowering : public OpConversionPattern<AddOp> {
+  using OpConversionPattern<AddOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AddOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+
+    auto lhsType = cast<RankedTensorType>(lhs.getType());
+    auto rhsType = cast<RankedTensorType>(rhs.getType());
+    auto resultType = cast<RankedTensorType>(op.getType());
+    Type f64 = rewriter.getF64Type();
+    int64_t resRank = resultType.getRank();
+
+    // Dynamic dim list for the result, derived from lhs (which always
+    // has the full output rank — rhs may be lower-rank).
+    SmallVector<Value> resDynSizes;
+    for (int64_t i = 0; i < resRank; ++i) {
+      if (resultType.isDynamicDim(i))
+        resDynSizes.push_back(rewriter.create<tensor::DimOp>(loc, lhs, i));
+    }
+
+    auto makeEmpty = [&]() -> Value {
+      return rewriter.create<tensor::EmptyOp>(loc, resultType.getShape(), f64,
+                                              resDynSizes);
+    };
+
+    // Bias broadcast: rhs has fewer dims than lhs. Broadcast rhs over the
+    // leading dims that lhs has and rhs doesn't.
+    Value broadcastedRhs = rhs;
+    if (rhsType.getRank() != lhsType.getRank()) {
+      int64_t numLeading = lhsType.getRank() - rhsType.getRank();
+      SmallVector<int64_t> bcastDims;
+      for (int64_t i = 0; i < numLeading; ++i)
+        bcastDims.push_back(i);
+      Value bcastInit = makeEmpty();
+      broadcastedRhs = rewriter
+                           .create<linalg::BroadcastOp>(loc, rhs, bcastInit,
+                                                        bcastDims)
+                           .getResults()[0];
+    }
+
+    Value addInit = makeEmpty();
+    auto added = rewriter.create<linalg::AddOp>(
+        loc, ValueRange{lhs, broadcastedRhs}, ValueRange{addInit});
+    rewriter.replaceOp(op, added.getResults());
+    return success();
+  }
+};
+
 } // namespace
 
 void NNToLinalgLoweringPass::runOnOperation() {
@@ -74,7 +179,7 @@ void NNToLinalgLoweringPass::runOnOperation() {
   target.addIllegalDialect<NNDialect>();
 
   RewritePatternSet patterns(&getContext());
-  patterns.add<ReluOpLowering>(&getContext());
+  patterns.add<ReluOpLowering, MatmulOpLowering, AddOpLowering>(&getContext());
 
   if (failed(applyPartialConversion(getOperation(), target,
                                     std::move(patterns))))

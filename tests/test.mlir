@@ -1,4 +1,5 @@
-func.func @double_relu(%arg0: tensor<4xf64>) -> tensor<4xf64> {
+func.func @double_relu(%arg0: tensor<4xf64>) -> tensor<4xf64>
+    attributes { llvm.emit_c_interface } {
   %0 = nn.relu %arg0 : tensor<4xf64> -> tensor<4xf64>
   %1 = nn.relu %0 : tensor<4xf64> -> tensor<4xf64>
   return %1 : tensor<4xf64>
