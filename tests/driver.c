@@ -68,8 +68,8 @@ static MemRef2D_f64 make_2d(double *data, int64_t rows, int64_t cols) {
 // ---------------------------------------------------------------------------
 
 extern void _mlir_ciface_mlp(MemRef2D_f64 *result, MemRef2D_f64 *x,
-                              MemRef2D_f64 *W1, MemRef1D_f64 *b1,
-                              MemRef2D_f64 *W2, MemRef1D_f64 *b2);
+                              MemRef2D_f64 *W1, MemRef2D_f64 *b1,
+                              MemRef2D_f64 *W2, MemRef2D_f64 *b2);
 
 int main(void) {
   // Input: 1 sample, 4 features.
@@ -84,9 +84,9 @@ int main(void) {
       0.7, 0.8, 0.9, //
       1.0, 1.1, 1.2, //
   };
-  double b1_data[3] = {0.1, 0.2, 0.3};
+  double b1_data[1 * 3] = {0.1, 0.2, 0.3};
   MemRef2D_f64 W1 = make_2d(W1_data, 4, 3);
-  MemRef1D_f64 b1 = make_1d(b1_data, 3);
+  MemRef2D_f64 b1 = make_2d(b1_data, 1, 3);
 
   // Output layer: 3 -> 2.
   double W2_data[3 * 2] = {
@@ -94,9 +94,9 @@ int main(void) {
       0.3, 0.4, //
       0.5, 0.6, //
   };
-  double b2_data[2] = {0.1, 0.2};
+  double b2_data[1 * 2] = {0.1, 0.2};
   MemRef2D_f64 W2 = make_2d(W2_data, 3, 2);
-  MemRef1D_f64 b2 = make_1d(b2_data, 2);
+  MemRef2D_f64 b2 = make_2d(b2_data, 1, 2);
 
   // Call the compiled MLP.
   MemRef2D_f64 result = {0};

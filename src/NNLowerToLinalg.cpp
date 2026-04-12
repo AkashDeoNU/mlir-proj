@@ -115,9 +115,8 @@ struct MatmulOpLowering : public OpConversionPattern<MatmulOp> {
   }
 };
 
-// Lower `nn.add %lhs, %rhs` to a linalg.add. If rhs has lower rank than
-// lhs, broadcast it up to lhs's shape with linalg.broadcast first (the
-// bias-add pattern: tensor<BxNxf64> + tensor<Nxf64>).
+// Lower `nn.add %lhs, %rhs` to a linalg.add. Both operands must have
+// the same rank.
 struct AddOpLowering : public OpConversionPattern<AddOp> {
   using OpConversionPattern<AddOp>::OpConversionPattern;
 
@@ -147,24 +146,13 @@ struct AddOpLowering : public OpConversionPattern<AddOp> {
                                               resDynSizes);
     };
 
-    // Bias broadcast: rhs has fewer dims than lhs. Broadcast rhs over the
-    // leading dims that lhs has and rhs doesn't.
-    Value broadcastedRhs = rhs;
     if (rhsType.getRank() != lhsType.getRank()) {
-      int64_t numLeading = lhsType.getRank() - rhsType.getRank();
-      SmallVector<int64_t> bcastDims;
-      for (int64_t i = 0; i < numLeading; ++i)
-        bcastDims.push_back(i);
-      Value bcastInit = makeEmpty();
-      broadcastedRhs = rewriter
-                           .create<linalg::BroadcastOp>(loc, rhs, bcastInit,
-                                                        bcastDims)
-                           .getResults()[0];
+	  return rewriter.notifyMatchFailure(op, "add expects operands of equal rank");
     }
 
     Value addInit = makeEmpty();
     auto added = rewriter.create<linalg::AddOp>(
-        loc, ValueRange{lhs, broadcastedRhs}, ValueRange{addInit});
+        loc, ValueRange{lhs, rhs}, ValueRange{addInit});
     rewriter.replaceOp(op, added.getResults());
     return success();
   }
